@@ -60,7 +60,12 @@ def break_even_utilization(discount_frac: float) -> float:
     return max(0.0, min(1.0, 1.0 - discount_frac))
 
 
-def recommend_tier(hours_per_day: float, interruptible: bool, reserved_discount: float = 0.45) -> str:
+def recommend_tier(
+        hours_per_day: float, 
+        interruptible: bool, 
+        reserved_discount: float = 0.45,
+        gpu_type: str | None = None,
+        job_days: int | None = None) -> str:
     """Pick a purchasing tier from a workload's duty cycle + interruptibility.
 
     DOCUMENTED simple policy (instructor extension point — swap in your own):
@@ -68,12 +73,25 @@ def recommend_tier(hours_per_day: float, interruptible: bool, reserved_discount:
       - duty cycle >= break-even  -> 'reserved'  (steady, high utilization)
       - otherwise                 -> 'on_demand' (spiky / low duty)
     """
+    """Extension 1: Tier recommendation taking into account GPU interruption risks and job lifecycle."""
     duty = max(0.0, hours_per_day) / 24.0
     be = break_even_utilization(reserved_discount)
+
+    # 1. Đánh giá Spot dựa trên khả năng chịu lỗi và độ rủi ro theo GPU type
     if interruptible and hours_per_day < 24:
+        # Nếu là GPU có rủi ro thu hồi cao hoặc job quá gấp, có thể chuyển hướng
+        high_risk_gpus = ["A10G", "T4"]
+        if gpu_type in high_risk_gpus and duty >= 0.8:
+            return "on_demand"
         return "spot"
+
+    # 2. Đánh giá Reserved theo thời lượng dự án (job_days) và duty cycle
     if duty >= be:
+        # Nếu job ngắn hạn dưới 30 ngày, không nên cam kết Reserved dài hạn
+        if job_days is not None and job_days < 30:
+            return "on_demand"
         return "reserved"
+
     return "on_demand"
 
 
@@ -102,3 +120,21 @@ def spot_checkpoint_cost(
         "on_demand_cost": round(on_demand_cost, 2),
         "savings_pct": round(savings_pct, 1),
     }
+
+def cache_is_worth_it(
+    avg_cache_reads: float,
+    write_cost_per_m: float,
+    read_discount: float = 0.10,
+) -> bool:
+    """Extension 3: Xác định xem caching có mang lại lợi ích tài chính hay không.
+    
+    - write_cost_per_m: Chi phí ghi/tạo cache ban đầu (thường bằng giá input gốc).
+    - read_discount: Hệ số giá đọc cache (0.10 = giảm 90%).
+    - Tiết kiệm trên mỗi lượt đọc = write_cost_per_m * (1 - read_discount).
+    - Caching có lãi khi: (avg_cache_reads * Tiết kiệm mỗi lượt đọc) > Chi phí ghi.
+    """
+    if avg_cache_reads <= 0 or write_cost_per_m <= 0:
+        return False
+    savings_per_read = write_cost_per_m * (1.0 - read_discount)
+    total_savings = avg_cache_reads * savings_per_read
+    return total_savings > write_cost_per_m
