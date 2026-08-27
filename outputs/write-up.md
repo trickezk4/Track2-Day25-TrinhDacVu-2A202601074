@@ -42,10 +42,31 @@
 **Extension 3: Đánh giá Điểm Hòa Vốn Caching (`cache_is_worth_it`) (AI Support)**
 
 * **Toán học:** Với giảm giá đọc 90% ($P_{read} = 0.10 \times P_{write}$), điểm hòa vốn là:
+
   $$
   N_{reads} \times (0.90 \times P_{write}) > P_{write} \iff N_{reads} > \frac{1}{1 - 0.10} \approx \mathbf{1.111 \text{ lượt đọc}}
   $$
 * **Kết quả đo lường:** $N_{reads} \le 1.0 \rightarrow$ `False`; $N_{reads} \ge 1.12 \rightarrow$ `True` (bắt đầu sinh lời).
+
+  ```
+  === ĐO LƯỜNG EXTENSION 3: BREAK-EVEN CACHE ===
+
+  Model: Small Model (Claude Instant/Haiku)
+
+  - Avg Reads: 0.5  -> Có lợi tài chính? False
+  - Avg Reads: 1.0  -> Có lợi tài chính? False
+  - Avg Reads: 1.12 -> Có lợi tài chính? True
+  - Avg Reads: 2.0  -> Có lợi tài chính? True
+  - Avg Reads: 5.0  -> Có lợi tài chính? True
+
+  Model: Large Model (Claude Opus/GPT-4)
+
+  - Avg Reads: 0.5  -> Có lợi tài chính? False
+  - Avg Reads: 1.0  -> Có lợi tài chính? False
+  - Avg Reads: 1.12 -> Có lợi tài chính? True
+  - Avg Reads: 2.0  -> Có lợi tài chính? True
+  - Avg Reads: 5.0  -> Có lợi tài chính? True
+  ```
 * **Insight:** Chỉ bật caching cho System Prompt/RAG dùng chung lặp lại nhiều lần; không bật cho prompt dùng 1 lần.
 
 ---
